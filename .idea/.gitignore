@@ -1,11 +1,39 @@
-# Default ignored files
-/shelf/
-/workspace.xml
-# Editor-based HTTP Client requests
-/httpRequests/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+# node_modules (라이브러리들 - 너무 커서 Git에 넣지 않음)
+node_modules/
 
-/node_modules
+# 로그 파일
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 운영체제 관련 파일
+.DS_Store  # macOS
+Thumbs.db  # Windows
+
+# 환경 설정 파일
 .env
+.env.local
+.env.*.local
+
+# 빌드 결과물 (프론트엔드에서는 배포용 코드)
+dist/
+build/
+
+# Vite 캐시
+.vite/
+
+# ESLint 캐시
+.eslintcache
+
+# IDE/에디터 설정
+.vscode/
+.idea/
+
+# 테스트 관련
+coverage/
+
+# TypeScript
+*.tsbuildinfo
+
+# Storybook 빌드 결과
+storybook-static/
