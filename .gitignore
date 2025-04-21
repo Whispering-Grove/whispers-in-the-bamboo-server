@@ -37,3 +37,5 @@ coverage/
 
 # Storybook 빌드 결과
 storybook-static/
+
+.idea/
