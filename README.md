@@ -5,3 +5,8 @@
 ```shell
 railway up
 ```
+
+## 실행
+```shell
+railway open
+```

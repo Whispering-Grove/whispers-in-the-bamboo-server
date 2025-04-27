@@ -1,8 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const Redis = require('ioredis');
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const redis = new Redis(process.env.REDIS_URL);
