@@ -6,7 +6,12 @@
 railway up
 ```
 
-## 실행
+## 배포되는 환경 실행
 ```shell
 railway open
+```
+
+## 실행
+```shell
+npm dev
 ```
