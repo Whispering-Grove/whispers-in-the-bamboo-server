@@ -133,6 +133,15 @@ wss.on('connection', async (ws, req) => {
           type: 'update-positions',
           payload: Object.values(remaining).map(JSON.parse),
         });
+      } else if (data.type === 'chat') {
+        const { id, message } = data.payload
+        console.log(data.payload);
+        if (typeof id === 'string' && typeof message === 'string' && message.length <= 30) {
+          broadcast({
+            type: 'chat',
+            payload: { id, message },
+          });
+        }
       }
 
     } catch (e) {
