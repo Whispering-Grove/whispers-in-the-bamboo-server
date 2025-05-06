@@ -47,17 +47,57 @@ app.get('/messages', async (req, res) => {
   res.send(messages.map((msg) => JSON.parse(msg)));
 });
 
-// WebSocket 연결 관리
-wss.on('connection', async (ws) => {
-  const userId = `${Math.floor(1000 + Math.random() * 9000)}`;
-  const defaultUser = {
-    id: userId,
-    position: { x: 0 },
-    hair: 'black',
-    dress: 'white',
-  };
+// 채팅방 전체 초기화
+app.post('/reset', async (req, res) => {
+  try {
+    await redis.del(USER_POSITION_KEY)
+    await redis.del('chat:messages')
+    broadcast({ type: 'update-positions', payload: [] })
+    res.json({ status: 'reset ok' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
 
-  await redis.hset(USER_POSITION_KEY, userId, JSON.stringify(defaultUser));
+// 모든 사용자 삭제
+app.post('/clear-users', async (req, res) => {
+  try {
+    await redis.del(USER_POSITION_KEY)
+    broadcast({ type: 'update-positions', payload: [] })
+    res.json({ status: '모든 사용자 삭제 완료' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// WebSocket 연결 관리
+wss.on('connection', async (ws, req) => {
+  const { searchParams } = new URL(req.url, `http://${req.headers.host}`);
+  let userId = searchParams.get('userId');
+
+  let isNewUser = false;
+
+  if (!userId) {
+    userId = `${Math.floor(1000 + Math.random() * 9000)}`;
+    isNewUser = true;
+  } else {
+    const existing = await redis.hget(USER_POSITION_KEY, userId);
+    if (!existing) {
+      isNewUser = true;
+    }
+  }
+
+  if (isNewUser) {
+    const defaultUser = {
+      id: userId,
+      position: { x: Math.floor(Math.random() * 801) - 400 },
+      hair: 'black',
+      dress: 'white',
+    };
+    await redis.hset(USER_POSITION_KEY, userId, JSON.stringify(defaultUser));
+  }
+
+  // 항상 ID 할당
   ws.send(JSON.stringify({ type: 'assign-id', payload: { id: userId } }));
 
   // 최초 전체 사용자 정보 전송
@@ -68,6 +108,7 @@ wss.on('connection', async (ws) => {
   ws.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg);
+
       if (data.type === 'move') {
         const { id, x } = data.payload;
         const raw = await redis.hget(USER_POSITION_KEY, id);
@@ -82,7 +123,18 @@ wss.on('connection', async (ws) => {
           type: 'update-positions',
           payload: Object.values(all).map(JSON.parse),
         });
+
+      } else if (data.type === 'kick') {
+        const { id } = data.payload;
+        await redis.hdel(USER_POSITION_KEY, id);
+
+        const remaining = await redis.hgetall(USER_POSITION_KEY);
+        broadcast({
+          type: 'update-positions',
+          payload: Object.values(remaining).map(JSON.parse),
+        });
       }
+
     } catch (e) {
       console.error('에러 발생:', e);
       ws.send(JSON.stringify({ type: 'error', message: '서버 처리 중 오류가 발생했습니다.' }));
