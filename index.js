@@ -91,8 +91,8 @@ wss.on('connection', async (ws, req) => {
     const defaultUser = {
       id: userId,
       position: { x: Math.floor(Math.random() * 801) - 400 },
-      hair: 'black',
-      dress: 'white',
+      hair: Math.floor(Math.random() * 13) + 1,
+      dress: Math.floor(Math.random() * 13) + 1,
     };
     await redis.hset(USER_POSITION_KEY, userId, JSON.stringify(defaultUser));
   }
