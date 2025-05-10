@@ -127,7 +127,7 @@ wss.on('connection', async (ws, req) => {
   ws.on('message', async (msg) => {
     try {
       const data = JSON.parse(msg);
-      console.log(data)
+      console.log(data.type, data.payload)
 
       if (data.type === 'move') {
         const {id, x} = data.payload;
@@ -155,12 +155,18 @@ wss.on('connection', async (ws, req) => {
         });
       } else if (data.type === 'chat') {
         const {id, message} = data.payload
-        console.log(data.payload);
+        const uniqueChatId = `${new Date().getTime()}_${Math.floor(
+            Math.random() * 1000000)}`
         if (typeof id === 'string' && typeof message === 'string'
             && message.length <= 30) {
           broadcast({
             type: 'chat',
-            payload: {id, message, createdAt: Date.now()},
+            payload: {
+              id: uniqueChatId,
+              userId: id,
+              message,
+              createdAt: Date.now()
+            },
           });
         }
       }
