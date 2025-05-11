@@ -45,19 +45,6 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// 메시지 저장
-app.post('/message', async (req, res) => {
-  const {user, message} = req.body;
-  await redis.lpush('chat:messages', JSON.stringify({user, message}));
-  res.send({status: 'ok'});
-});
-
-// 최근 메시지 10개
-app.get('/messages', async (req, res) => {
-  const messages = await redis.lrange('chat:messages', 0, 9);
-  res.send(messages.map((msg) => JSON.parse(msg)));
-});
-
 // 채팅방 전체 초기화
 app.post('/reset', async (req, res) => {
   try {
@@ -85,7 +72,6 @@ app.post('/clear-users', async (req, res) => {
 app.post('/delete-user', async (req, res) => {
   try {
     const {userId} = req.body
-
     console.log('[삭제 시도할 userId]', userId, typeof userId)
     await redis.hdel(USER_POSITION_KEY, userId);
     const remaining = await redis.hgetall(USER_POSITION_KEY);
@@ -155,22 +141,37 @@ wss.on('connection', async (ws, req) => {
         });
       } else if (data.type === 'chat') {
         const {id, message} = data.payload
-        const uniqueChatId = `${new Date().getTime()}_${Math.floor(
+        const messageId = `${new Date().getTime()}_${Math.floor(
             Math.random() * 1000000)}`
-        if (typeof id === 'string' && typeof message === 'string'
-            && message.length <= 30) {
-          broadcast({
-            type: 'chat',
-            payload: {
-              id: uniqueChatId,
-              userId: id,
-              message,
-              createdAt: Date.now()
-            },
-          });
-        }
-      }
 
+        if (typeof id !== 'string') {
+          throw new Error('사용자 정보가 없어요')
+        }
+
+        if (typeof message !== 'string') {
+          throw new Error('메시지 포맷이 올바르지 않아요')
+        }
+
+        const sliceMessage = message.slice(0, 30)
+        // 10초 뒤에 제거되도록 저장
+        await redis.set(messageId, JSON.stringify(sliceMessage), 'EX', 10);
+        const saved = await redis.get(messageId);
+        const parsed = saved ? JSON.parse(saved) : null;
+
+        if (parsed === null) {
+          return
+        }
+
+        broadcast({
+          type: 'chat',
+          payload: {
+            id: messageId,
+            userId: id,
+            message: parsed,
+            createdAt: Date.now()
+          },
+        })
+      }
     } catch (e) {
       console.error('에러 발생:', e);
       ws.send(JSON.stringify({type: 'error', message: '서버 처리 중 오류가 발생했습니다.'}));
@@ -186,6 +187,34 @@ wss.on('connection', async (ws, req) => {
     });
   });
 });
+
+async function allMessages() {
+  const keys = await redis.lrange('chat:message-ids', 0, -1);
+  const messages = [];
+
+  for (const key of keys) {
+    const value = await redis.get(key);
+    if (value) {
+      messages.push(JSON.parse(value));
+    } else {
+      // 만료된 키는 리스트에서 제거
+      await redis.lrem('chat:message-ids', 0, key);
+    }
+  }
+
+  return messages; // 살아있는 메시지 목록
+}
+
+async function getMyMessage(messageId) {
+  const keys = await redis.lrange('chat:message-ids', 0, -1);
+
+  for (const key of keys) {
+    if (messageId === key) {
+      const value = await redis.get(key);
+      return JSON.parse(value)
+    }
+  }
+}
 
 // 전체 사용자에게 메시지 전송
 function broadcast(data) {
