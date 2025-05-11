@@ -29,7 +29,7 @@ app.post('/login', async (req, res) => {
 
     const userData = {
       id: bodyData.id,
-      position: {x: bodyData.position},
+      position: {x: bodyData.position.x},
       hair: bodyData.hair,
       dress: bodyData.dress
     };
