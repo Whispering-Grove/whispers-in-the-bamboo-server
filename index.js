@@ -15,6 +15,39 @@ app.use(express.json());
 const redis = new Redis(process.env.REDIS_URL);
 
 const USER_POSITION_KEY = 'chat:user_positions';
+const CHAT_MESSAGES_KEY = 'chat:messages'
+
+class Timeout {
+  constructor() {
+    this.timeoutIds = {}
+  }
+
+  startTimeouts(callback, ms) {
+    const timeoutId = setTimeout(() => {
+      callback()
+      this.endTimeouts(timeoutId)
+    }, ms)
+
+    this.timeoutIds[timeoutId] = true
+  }
+
+  endTimeouts(id) {
+    if (!!id) {
+      clearTimeout(id)
+      delete this.timeoutIds[id]
+      return
+    }
+
+    for (const key in this.timeoutIds) {
+      const id = Number(key)
+      clearTimeout(id)
+    }
+
+    this.timeoutIds = {}
+  }
+}
+
+const timer = new Timeout()
 
 // 사용자 정보 저장 (로그인 시)
 app.post('/login', async (req, res) => {
@@ -153,23 +186,26 @@ wss.on('connection', async (ws, req) => {
         }
 
         const sliceMessage = message.slice(0, 30)
-        // 10초 뒤에 제거되도록 저장
-        await redis.set(messageId, JSON.stringify(sliceMessage), 'EX', 10);
-        const saved = await redis.get(messageId);
-        const parsed = saved ? JSON.parse(saved) : null;
+        const messagePayload = {
+          id: messageId,
+          userId: id,
+          message: sliceMessage,
+          createdAt: Date.now()
+        }
+        await redis.hset(CHAT_MESSAGES_KEY, messageId,
+            JSON.stringify(messagePayload));
+        const messageData = await redis.hget(CHAT_MESSAGES_KEY, messageId);
+        const parsed = messageData ? JSON.parse(messageData) : null;
 
         if (parsed === null) {
           return
         }
 
+        removeMessage(messageId)
+
         broadcast({
           type: 'chat',
-          payload: {
-            id: messageId,
-            userId: id,
-            message: parsed,
-            createdAt: Date.now()
-          },
+          payload: parsed,
         })
       }
     } catch (e) {
@@ -188,32 +224,15 @@ wss.on('connection', async (ws, req) => {
   });
 });
 
-async function allMessages() {
-  const keys = await redis.lrange('chat:message-ids', 0, -1);
-  const messages = [];
-
-  for (const key of keys) {
-    const value = await redis.get(key);
-    if (value) {
-      messages.push(JSON.parse(value));
-    } else {
-      // 만료된 키는 리스트에서 제거
-      await redis.lrem('chat:message-ids', 0, key);
+// 10초 뒤 메시지 제거 로직
+async function removeMessage(messageId) {
+  timer.startTimeouts(async () => {
+    try {
+      await redis.hdel(CHAT_MESSAGES_KEY, messageId);
+    } catch (e) {
+      console.log('메시지 삭제 오류', e?.message)
     }
-  }
-
-  return messages; // 살아있는 메시지 목록
-}
-
-async function getMyMessage(messageId) {
-  const keys = await redis.lrange('chat:message-ids', 0, -1);
-
-  for (const key of keys) {
-    if (messageId === key) {
-      const value = await redis.get(key);
-      return JSON.parse(value)
-    }
-  }
+  }, 10000)
 }
 
 // 전체 사용자에게 메시지 전송
