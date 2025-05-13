@@ -11,7 +11,7 @@ const wss = new WebSocket.Server({server});
 
 app.use(cors({
   origin: ['http://localhost:5173',
-    'whispers-in-the-bamboo-client-production.up.railway.app',
+    'https://whispers-in-the-bamboo-client-production.up.railway.app',
     'https://whispers-in-the-bamboo-production.up.railway.app'],
 }));
 app.use(express.json());
