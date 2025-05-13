@@ -77,23 +77,23 @@ app.post('/login', async (req, res) => {
 
     console.log(bodyData.id)
 
-    // if (!bodyData.id) {
-    //   return res.status(400).json({error: '사용자 정보가 없어요'});
-    // }
-    //
-    // const userData = {
-    //   id: bodyData.id,
-    //   position: {x: bodyData.position.x},
-    //   hair: bodyData.hair,
-    //   dress: bodyData.dress,
-    //   noChat: bodyData.noChat ?? false,
-    //   chatCount: bodyData.chatCount ?? 0,
-    // };
-    //
-    // redis.hset(USER_POSITION_KEY, bodyData.id, JSON.stringify(userData));
-    //
-    // const allFields = await redis.hkeys(USER_POSITION_KEY)
-    // console.log('[Redis에 저장된 필드 목록]', allFields)
+    if (!bodyData.id) {
+      return res.status(400).json({error: '사용자 정보가 없어요'});
+    }
+
+    const userData = {
+      id: bodyData.id,
+      position: {x: bodyData.position.x},
+      hair: bodyData.hair,
+      dress: bodyData.dress,
+      noChat: bodyData.noChat ?? false,
+      chatCount: bodyData.chatCount ?? 0,
+    };
+
+    redis.hset(USER_POSITION_KEY, bodyData.id, JSON.stringify(userData));
+
+    const allFields = await redis.hkeys(USER_POSITION_KEY)
+    console.log('[Redis에 저장된 필드 목록]', allFields)
 
     res.json({status: 'ok'});
   } catch (e) {
