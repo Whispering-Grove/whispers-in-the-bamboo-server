@@ -15,7 +15,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const redis = new Redis(process.env.REDIS_URL);
+const redis = new Redis(
+    'redis://default:VOibWDShykPkKmXxVfNoEuMyKliixwtI@switchyard.proxy.rlwy.net:19222');
 
 const USER_POSITION_KEY = 'chat:user_positions';
 const CHAT_MESSAGES_KEY = 'chat:messages'
