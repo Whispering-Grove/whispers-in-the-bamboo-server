@@ -10,7 +10,8 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({server});
 
 app.use(cors({
-  origin: ['http://localhost:5173'], // 프론트 포트에 맞게
+  origin: ['http://localhost:5173',
+    'https://whispers-in-the-bamboo-production.up.railway.app'],
 }));
 app.use(express.json());
 
@@ -21,7 +22,24 @@ const CHAT_MESSAGES_KEY = 'chat:messages'
 
 class Timeout {
   constructor() {
+    this.timeoutId = null
     this.timeoutIds = {}
+  }
+
+  startTimeout(callback, ms) {
+    this.endTimeout()
+    if (this.timeoutId === null) {
+      this.timeoutId = setTimeout(() => {
+        callback()
+      }, ms)
+    }
+  }
+
+  endTimeout() {
+    if (this.timeoutId !== null) {
+      clearTimeout(this.timeoutId)
+      this.timeoutId = null
+    }
   }
 
   startTimeouts(callback, ms) {
@@ -66,7 +84,9 @@ app.post('/login', async (req, res) => {
       id: bodyData.id,
       position: {x: bodyData.position.x},
       hair: bodyData.hair,
-      dress: bodyData.dress
+      dress: bodyData.dress,
+      noChat: bodyData.noChat ?? false,
+      chatCount: bodyData.chatCount ?? 0,
     };
 
     redis.hset(USER_POSITION_KEY, bodyData.id, JSON.stringify(userData));
@@ -175,7 +195,7 @@ wss.on('connection', async (ws, req) => {
           payload: Object.values(remaining).map(JSON.parse),
         });
       } else if (data.type === 'chat') {
-        const {id, message} = data.payload
+        const {id, message, chatCount} = data.payload
         const messageId = `${new Date().getTime()}_${Math.floor(
             Math.random() * 1000000)}`
 
@@ -185,6 +205,13 @@ wss.on('connection', async (ws, req) => {
 
         if (typeof message !== 'string') {
           throw new Error('메시지 포맷이 올바르지 않아요')
+        }
+
+        if (chatCount >= 2) {
+          await handleUsedChatting(id, true, chatCount)
+          timer.startTimeout(() => {
+            handleUsedChatting(id, false, 0)
+          }, 30 * 1000)
         }
 
         const sliceMessage = message.slice(0, 30)
@@ -204,11 +231,7 @@ wss.on('connection', async (ws, req) => {
         }
 
         removeMessage(messageId)
-
-        broadcast({
-          type: 'chat',
-          payload: parsed,
-        })
+        broadcast({type: 'chat', payload: parsed})
       }
     } catch (e) {
       console.error('에러 발생:', e);
@@ -225,6 +248,23 @@ wss.on('connection', async (ws, req) => {
     });
   });
 });
+
+// 채팅 금지 여부 적용
+async function handleUsedChatting(id, noChat, chatCount) {
+  const raw = await redis.hget(USER_POSITION_KEY, id);
+  if (raw) {
+    const user = JSON.parse(raw);
+    user.noChat = noChat;
+    user.chatCount = chatCount
+    await redis.hset(USER_POSITION_KEY, id, JSON.stringify(user));
+  }
+
+  const all = await redis.hgetall(USER_POSITION_KEY);
+  broadcast({
+    type: 'update-positions',
+    payload: Object.values(all).map(JSON.parse),
+  });
+}
 
 // 10초 뒤 메시지 제거 로직
 async function removeMessage(messageId) {
