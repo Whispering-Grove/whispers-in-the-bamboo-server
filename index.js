@@ -11,6 +11,7 @@ const wss = new WebSocket.Server({server});
 
 app.use(cors({
   origin: ['http://localhost:5173',
+    'whispers-in-the-bamboo-client-production.up.railway.app',
     'https://whispers-in-the-bamboo-production.up.railway.app'],
 }));
 app.use(express.json());
@@ -208,7 +209,7 @@ wss.on('connection', async (ws, req) => {
           throw new Error('메시지 포맷이 올바르지 않아요')
         }
 
-        if (chatCount >= 2) {
+        if (chatCount >= 5) {
           await handleUsedChatting(id, true, chatCount)
           timer.startTimeout(() => {
             handleUsedChatting(id, false, 0)
