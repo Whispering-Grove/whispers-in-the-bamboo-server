@@ -9,7 +9,9 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({server});
 
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'], // 프론트 포트에 맞게
+}));
 app.use(express.json());
 
 const redis = new Redis(process.env.REDIS_URL);
