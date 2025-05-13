@@ -257,12 +257,13 @@ async function handleUsedChatting(id, noChat, chatCount) {
     const user = JSON.parse(raw);
     user.noChat = noChat;
     user.chatCount = chatCount
+    user.position.x = noChat ? 1300 - 80 - 350 : 0
     await redis.hset(USER_POSITION_KEY, id, JSON.stringify(user));
   }
 
   const all = await redis.hgetall(USER_POSITION_KEY);
   broadcast({
-    type: 'update-positions',
+    type: 'no-chat',
     payload: Object.values(all).map(JSON.parse),
   });
 }
